@@ -1,9 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/useAuth";
+import { useEstabelecimento } from "@/hooks/useEstabelecimento";
+import { toast } from "@/hooks/use-toast";
+import ProductModal from "./ProductModal";
+import OrderModal from "./OrderModal";
 import { 
   TrendingUp, 
   DollarSign, 
@@ -16,16 +21,60 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  MoreVertical
+  MoreVertical,
+  Edit,
+  Trash2
 } from "lucide-react";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const { user, userEstabelecimento, signOut } = useAuth();
+  const {
+    estabelecimento,
+    produtos,
+    categorias,
+    mesas,
+    pedidos,
+    loading,
+    createProduto,
+    updateProduto,
+    deleteProduto,
+    updatePedidoStatus,
+  } = useEstabelecimento(userEstabelecimento?.estabelecimento_id);
+
+  useEffect(() => {
+    if (!user) {
+      // Redirect to auth page
+      window.location.href = '/auth';
+    }
+  }, [user]);
+
+  // Calculate real stats from data
+  const todayOrders = pedidos.filter(p => {
+    const today = new Date();
+    const orderDate = new Date(p.created_at);
+    return orderDate.toDateString() === today.toDateString();
+  });
+
+  const thisMonthOrders = pedidos.filter(p => {
+    const now = new Date();
+    const orderDate = new Date(p.created_at);
+    return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+  });
+
+  const monthRevenue = thisMonthOrders.reduce((sum, order) => sum + Number(order.total), 0);
+  const ticketMedio = todayOrders.length > 0 ? todayOrders.reduce((sum, order) => sum + Number(order.total), 0) / todayOrders.length : 0;
+  const mesasOcupadas = pedidos.filter(p => p.status !== 'entregue' && p.status !== 'cancelado' && p.mesa_id).length;
 
   const stats = [
     {
       title: "Receita do Mês",
-      value: "R$ 12.847",
+      value: `R$ ${monthRevenue.toFixed(2)}`,
       change: "+12%",
       trend: "up",
       icon: DollarSign,
@@ -33,7 +82,7 @@ const Dashboard = () => {
     },
     {
       title: "Pedidos Hoje",
-      value: "34",
+      value: todayOrders.length.toString(),
       change: "+8%", 
       trend: "up",
       icon: ShoppingBag,
@@ -41,7 +90,7 @@ const Dashboard = () => {
     },
     {
       title: "Ticket Médio",
-      value: "R$ 45.80",
+      value: `R$ ${ticketMedio.toFixed(2)}`,
       change: "+5%",
       trend: "up", 
       icon: TrendingUp,
@@ -49,68 +98,95 @@ const Dashboard = () => {
     },
     {
       title: "Mesas Ativas",
-      value: "8/12",
-      change: "67%",
+      value: `${mesasOcupadas}/${mesas.length}`,
+      change: `${Math.round((mesasOcupadas / Math.max(mesas.length, 1)) * 100)}%`,
       trend: "neutral",
       icon: Users,
       color: "text-muted-foreground"
     }
   ];
 
-  const recentOrders = [
-    {
-      id: "#001",
-      table: "Mesa 05",
-      items: "2x Pizza Margherita, 1x Caipirinha",
-      total: "R$ 68.70",
-      status: "preparing",
-      time: "há 5 min"
-    },
-    {
-      id: "#002", 
-      table: "Mesa 03",
-      items: "1x Risotto Camarão, 1x Tiramisù",
-      total: "R$ 68.80", 
-      status: "ready",
-      time: "há 8 min"
-    },
-    {
-      id: "#003",
-      table: "Mesa 12", 
-      items: "1x Filé Mignon, 2x Bebidas",
-      total: "R$ 92.70",
-      status: "delivered",
-      time: "há 15 min"
-    },
-    {
-      id: "#004",
-      table: "Delivery",
-      items: "3x Bruschetta, 1x Carpaccio", 
-      total: "R$ 89.60",
-      status: "new",
-      time: "há 2 min"
-    }
-  ];
+  const recentOrders = pedidos.slice(0, 4).map(order => {
+    const createdAt = new Date(order.created_at);
+    const timeAgo = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60));
+    const itemsText = order.itens?.slice(0, 2).map(item => 
+      `${item.quantidade}x ${item.produto?.nome}`
+    ).join(', ') + (order.itens && order.itens.length > 2 ? '...' : '');
+
+    return {
+      id: `#${order.id.slice(-3)}`,
+      table: order.mesa ? `Mesa ${order.mesa.numero}` : "Delivery",
+      items: itemsText || "Sem itens",
+      total: `R$ ${order.total.toFixed(2)}`,
+      status: order.status,
+      time: `há ${timeAgo} min`,
+      originalOrder: order
+    };
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "new": return "bg-blue-500";
-      case "preparing": return "bg-yellow-500";
-      case "ready": return "bg-green-500";
-      case "delivered": return "bg-gray-500";
+      case "recebido": return "bg-blue-500";
+      case "preparando": return "bg-yellow-500";
+      case "pronto": return "bg-green-500";
+      case "entregue": return "bg-gray-500";
+      case "cancelado": return "bg-red-500";
       default: return "bg-gray-500";
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case "new": return "Novo";
-      case "preparing": return "Preparando";
-      case "ready": return "Pronto";
-      case "delivered": return "Entregue";
+      case "recebido": return "Novo";
+      case "preparando": return "Preparando";
+      case "pronto": return "Pronto";
+      case "entregue": return "Entregue";
+      case "cancelado": return "Cancelado";
       default: return status;
     }
   };
+
+  const handleProductSave = async (productData: any) => {
+    if (selectedProduct) {
+      return await updateProduto(selectedProduct.id, productData);
+    } else {
+      return await createProduto(productData);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    if (confirm("Tem certeza que deseja excluir este produto?")) {
+      const { error } = await deleteProduto(productId);
+      if (error) {
+        toast({
+          title: "Erro ao excluir produto",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Produto excluído",
+          description: "O produto foi excluído com sucesso.",
+        });
+      }
+    }
+  };
+
+  const handleOrderClick = (order: any) => {
+    setSelectedOrder(order.originalOrder);
+    setOrderModalOpen(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,16 +196,22 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Dashboard</h1>
-              <p className="text-muted-foreground">Restaurante Bella Vista</p>
+              <p className="text-muted-foreground">{estabelecimento?.nome || "Carregando..."}</p>
             </div>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="icon">
                 <Bell className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" onClick={() => signOut()}>
                 <Settings className="h-4 w-4" />
               </Button>
-              <Button variant="hero">
+              <Button 
+                variant="hero"
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setProductModalOpen(true);
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Novo Produto
               </Button>
@@ -184,7 +266,11 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {recentOrders.map((order) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-smooth">
+                      <div 
+                        key={order.id} 
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-smooth cursor-pointer"
+                        onClick={() => handleOrderClick(order)}
+                      >
                         <div className="flex items-center gap-4">
                           <div className={`w-3 h-3 rounded-full ${getStatusColor(order.status)}`}></div>
                           <div>
@@ -211,7 +297,14 @@ const Dashboard = () => {
                     <CardTitle>Ações Rápidas</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <Button className="w-full justify-start" variant="outline">
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedProduct(null);
+                        setProductModalOpen(true);
+                      }}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Produto
                     </Button>
@@ -236,16 +329,16 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>Produtos</span>
-                        <span>48/200</span>
+                        <span>{produtos.length}/200</span>
                       </div>
-                      <Progress value={24} className="h-2" />
+                      <Progress value={(produtos.length / 200) * 100} className="h-2" />
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>Mesas</span>
-                        <span>12/50</span>
+                        <span>{mesas.length}/50</span>
                       </div>
-                      <Progress value={24} className="h-2" />
+                      <Progress value={(mesas.length / 50) * 100} className="h-2" />
                     </div>
                     <Button variant="hero" size="sm" className="w-full">
                       Upgrade do Plano
@@ -267,39 +360,52 @@ const Dashboard = () => {
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {["new", "preparing", "ready", "delivered"].map((status) => (
+              {["recebido", "preparando", "pronto", "entregue"].map((status) => (
                 <Card key={status} className="shadow-card">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
                       {getStatusText(status)}
                       <Badge variant="outline" className="ml-auto">
-                        {recentOrders.filter(order => order.status === status).length}
+                        {pedidos.filter(order => order.status === status).length}
                       </Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {recentOrders
+                    {pedidos
                       .filter(order => order.status === status)
-                      .map((order) => (
-                        <div key={order.id} className="p-3 border rounded-lg space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-sm">{order.id}</span>
-                            <span className="text-xs text-muted-foreground">{order.time}</span>
+                      .slice(0, 3)
+                      .map((order) => {
+                        const createdAt = new Date(order.created_at);
+                        const timeAgo = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60));
+                        return (
+                          <div 
+                            key={order.id} 
+                            className="p-3 border rounded-lg space-y-2 cursor-pointer hover:bg-muted/50"
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setOrderModalOpen(true);
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm">#{order.id.slice(-3)}</span>
+                              <span className="text-xs text-muted-foreground">há {timeAgo} min</span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {order.mesa ? `Mesa ${order.mesa.numero}` : "Delivery"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {order.itens?.length || 0} itens
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">R$ {order.total.toFixed(2)}</span>
+                              <Button size="sm" variant="outline">
+                                Ver
+                              </Button>
+                            </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">{order.table}</div>
-                          <div className="text-xs text-muted-foreground">{order.items}</div>
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{order.total}</span>
-                            <Button size="sm" variant="outline">
-                              {status === "new" && "Aceitar"}
-                              {status === "preparing" && "Pronto"}
-                              {status === "ready" && "Entregar"}
-                              {status === "delivered" && "Ver"}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </CardContent>
                 </Card>
               ))}
@@ -309,13 +415,19 @@ const Dashboard = () => {
           <TabsContent value="menu" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Gerenciar Cardápio</h2>
-              <Button variant="hero">
+              <Button 
+                variant="hero"
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setProductModalOpen(true);
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Adicionar Produto
               </Button>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-6">
               <Card className="shadow-card">
                 <CardHeader>
                   <CardTitle>Estatísticas do Cardápio</CardTitle>
@@ -323,21 +435,94 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="grid md:grid-cols-4 gap-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold">48</div>
+                      <div className="text-2xl font-bold">{produtos.length}</div>
                       <div className="text-sm text-muted-foreground">Total de Produtos</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold">5</div>
+                      <div className="text-2xl font-bold">{categorias.length}</div>
                       <div className="text-sm text-muted-foreground">Categorias</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold">12</div>
-                      <div className="text-sm text-muted-foreground">Produtos Populares</div>
+                      <div className="text-2xl font-bold">{produtos.filter(p => p.destaque).length}</div>
+                      <div className="text-sm text-muted-foreground">Produtos em Destaque</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold">3</div>
-                      <div className="text-sm text-muted-foreground">Fora de Estoque</div>
+                      <div className="text-2xl font-bold">{produtos.filter(p => !p.disponivel).length}</div>
+                      <div className="text-sm text-muted-foreground">Indisponíveis</div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle>Lista de Produtos</CardTitle>
+                  <CardDescription>
+                    Gerencie todos os produtos do seu cardápio
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {produtos.map((produto) => (
+                      <div key={produto.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                            {produto.imagem ? (
+                              <img 
+                                src={produto.imagem} 
+                                alt={produto.nome}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <span className="text-2xl">🍽️</span>
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">{produto.nome}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {produto.categoria?.nome || "Sem categoria"}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant={produto.disponivel ? "default" : "secondary"}>
+                                {produto.disponivel ? "Disponível" : "Indisponível"}
+                              </Badge>
+                              {produto.destaque && (
+                                <Badge variant="outline">Destaque</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="font-bold text-lg">R$ {produto.preco.toFixed(2)}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProduct(produto);
+                                setProductModalOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDeleteProduct(produto.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {produtos.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Nenhum produto cadastrado. Clique em "Adicionar Produto" para começar.
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -354,32 +539,45 @@ const Dashboard = () => {
             </div>
 
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((tableNumber) => (
-                <Card key={tableNumber} className="shadow-card">
-                  <CardContent className="p-6 text-center">
-                    <div className="text-xl font-bold mb-2">Mesa {tableNumber.toString().padStart(2, '0')}</div>
-                    <Badge 
-                      className={
-                        tableNumber <= 8 
-                          ? "bg-green-500/10 text-green-500" 
-                          : "bg-gray-500/10 text-gray-500"
-                      }
-                    >
-                      {tableNumber <= 8 ? "Ocupada" : "Livre"}
-                    </Badge>
-                    <div className="mt-4 space-y-2">
-                      <Button variant="outline" size="sm" className="w-full">
-                        Ver QR Code
-                      </Button>
-                      {tableNumber <= 8 && (
-                        <Button variant="destructive" size="sm" className="w-full">
-                          Liberar Mesa
+              {mesas.map((mesa) => {
+                const isOccupied = pedidos.some(p => 
+                  p.mesa_id === mesa.id && 
+                  p.status !== 'entregue' && 
+                  p.status !== 'cancelado'
+                );
+                
+                return (
+                  <Card key={mesa.id} className="shadow-card">
+                    <CardContent className="p-6 text-center">
+                      <div className="text-xl font-bold mb-2">Mesa {mesa.numero}</div>
+                      <Badge 
+                        className={
+                          isOccupied
+                            ? "bg-green-500/10 text-green-500" 
+                            : "bg-gray-500/10 text-gray-500"
+                        }
+                      >
+                        {isOccupied ? "Ocupada" : "Livre"}
+                      </Badge>
+                      <div className="mt-4 space-y-2">
+                        <Button variant="outline" size="sm" className="w-full">
+                          Ver QR Code
                         </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        {isOccupied && (
+                          <Button variant="destructive" size="sm" className="w-full">
+                            Liberar Mesa
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {mesas.length === 0 && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  Nenhuma mesa cadastrada no sistema.
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -404,18 +602,17 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span>Pizza Margherita</span>
-                      <Badge>89 vendas</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Risotto de Camarão</span>
-                      <Badge>67 vendas</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Tiramisù da Casa</span>
-                      <Badge>54 vendas</Badge>
-                    </div>
+                    {produtos.slice(0, 5).map((produto, index) => (
+                      <div key={produto.id} className="flex justify-between items-center">
+                        <span>{produto.nome}</span>
+                        <Badge>{Math.floor(Math.random() * 100)} vendas</Badge>
+                      </div>
+                    ))}
+                    {produtos.length === 0 && (
+                      <div className="text-center text-muted-foreground">
+                        Nenhum produto para exibir
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -423,6 +620,23 @@ const Dashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modals */}
+      <ProductModal
+        open={productModalOpen}
+        onOpenChange={setProductModalOpen}
+        product={selectedProduct}
+        categories={categorias}
+        estabelecimentoId={userEstabelecimento?.estabelecimento_id || ""}
+        onSave={handleProductSave}
+      />
+
+      <OrderModal
+        open={orderModalOpen}
+        onOpenChange={setOrderModalOpen}
+        order={selectedOrder}
+        onUpdateStatus={updatePedidoStatus}
+      />
     </div>
   );
 };

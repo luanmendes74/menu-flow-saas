@@ -20,8 +20,8 @@ const LandingPage = () => {
             <a href="#contact" className="text-muted-foreground hover:text-primary transition-smooth">Contato</a>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost">Entrar</Button>
-            <Button variant="hero">Começar Grátis</Button>
+            <Button variant="ghost" onClick={() => window.location.href = '/auth'}>Entrar</Button>
+            <Button variant="hero" onClick={() => window.location.href = '/auth'}>Começar Grátis</Button>
           </div>
         </div>
       </nav>
