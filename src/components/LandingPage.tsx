@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,8 +21,12 @@ const LandingPage = () => {
             <a href="#contact" className="text-muted-foreground hover:text-primary transition-smooth">Contato</a>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => window.location.href = '/auth'}>Entrar</Button>
-            <Button variant="hero" onClick={() => window.location.href = '/auth'}>Começar Grátis</Button>
+            <Button variant="ghost" asChild>
+              <Link to="/auth">Entrar</Link>
+            </Button>
+            <Button variant="hero" asChild>
+              <Link to="/auth">Começar Grátis</Link>
+            </Button>
           </div>
         </div>
       </nav>
@@ -46,11 +51,11 @@ const LandingPage = () => {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button variant="hero" size="lg" className="text-lg">
-                  Experimentar Grátis
+                <Button variant="hero" size="lg" className="text-lg" asChild>
+                  <Link to="/auth">Experimentar Grátis</Link>
                 </Button>
-                <Button variant="outline" size="lg" className="text-lg">
-                  Ver Demonstração
+                <Button variant="outline" size="lg" className="text-lg" asChild>
+                  <Link to="/menu">Ver Demonstração</Link>
                 </Button>
               </div>
 
@@ -209,8 +214,8 @@ const LandingPage = () => {
                     <span>Suporte por email</span>
                   </div>
                 </div>
-                <Button className="w-full mt-6" variant="outline">
-                  Começar Grátis
+                <Button className="w-full mt-6" variant="outline" asChild>
+                  <Link to="/auth">Começar Grátis</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -250,8 +255,8 @@ const LandingPage = () => {
                     <span>Delivery integrado</span>
                   </div>
                 </div>
-                <Button className="w-full mt-6" variant="hero">
-                  Assinar Premium
+                <Button className="w-full mt-6" variant="hero" asChild>
+                  <Link to="/auth">Assinar Premium</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -308,11 +313,11 @@ const LandingPage = () => {
               Junte-se a centenas de estabelecimentos que já modernizaram seus cardápios com nossa plataforma.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="secondary" size="lg" className="text-lg">
-                Começar Teste Grátis
+              <Button variant="secondary" size="lg" className="text-lg" asChild>
+                <Link to="/auth">Começar Teste Grátis</Link>
               </Button>
-              <Button variant="outline" size="lg" className="text-lg border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary">
-                Agendar Demonstração
+              <Button variant="outline" size="lg" className="text-lg border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary" asChild>
+                <Link to="/menu">Agendar Demonstração</Link>
               </Button>
             </div>
           </div>

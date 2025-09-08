@@ -1,23 +1,17 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import LandingPage from "@/components/LandingPage";
-import MenuInterface from "@/components/MenuInterface";
-import Dashboard from "@/components/Dashboard";
-import AuthPage from "@/components/AuthPage";
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<"landing" | "menu" | "dashboard" | "auth">("landing");
+  const navigate = useNavigate();
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    // Check URL for auth route
-    if (window.location.pathname === '/auth') {
-      setCurrentView("auth");
-    } else if (user) {
-      setCurrentView("dashboard");
+    if (user) {
+      navigate("/dashboard");
     }
-  }, [user]);
+  }, [user, navigate]);
 
   if (loading) {
     return (
@@ -30,48 +24,7 @@ const Index = () => {
     );
   }
 
-  if (currentView === "auth") {
-    return <AuthPage />;
-  }
-
-  if (currentView === "menu") {
-    return <MenuInterface />;
-  }
-
-  if (currentView === "dashboard") {
-    return <Dashboard />;
-  }
-
-  return (
-    <div className="relative">
-      <LandingPage />
-      
-      {/* Demo Navigation */}
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-card border rounded-lg shadow-elegant p-2 flex gap-2 z-50">
-        <Button 
-          variant={currentView === "landing" ? "default" : "outline"} 
-          size="sm"
-          onClick={() => setCurrentView("landing")}
-        >
-          Landing
-        </Button>
-        <Button 
-          variant="outline"
-          size="sm"
-          onClick={() => setCurrentView("menu")}
-        >
-          Cardápio
-        </Button>
-        <Button 
-          variant="outline"
-          size="sm"
-          onClick={() => setCurrentView("dashboard")}
-        >
-          Dashboard
-        </Button>
-      </div>
-    </div>
-  );
+  return <LandingPage />;
 };
 
 export default Index;
