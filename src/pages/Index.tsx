@@ -8,10 +8,10 @@ const Index = () => {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      navigate("/dashboard");
+    if (!loading && user) {
+      navigate("/dashboard", { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   if (loading) {
     return (

@@ -10,9 +10,13 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        if (!isMounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
@@ -20,7 +24,9 @@ export const useAuth = () => {
         if (session?.user) {
           // Fetch user establishment data with setTimeout to prevent deadlock
           setTimeout(() => {
-            fetchUserEstabelecimento(session.user.id);
+            if (isMounted) {
+              fetchUserEstabelecimento(session.user.id);
+            }
           }, 0);
         } else {
           setUserEstabelecimento(null);
@@ -32,6 +38,8 @@ export const useAuth = () => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -42,7 +50,10 @@ export const useAuth = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserEstabelecimento = async (userId: string) => {
