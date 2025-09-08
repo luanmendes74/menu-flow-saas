@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,17 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    console.log('AuthPage: user state changed:', user?.email);
+    if (user) {
+      console.log('AuthPage: redirecting to dashboard');
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +46,7 @@ const AuthPage = () => {
           title: "Login realizado com sucesso!",
           description: "Bem-vindo de volta.",
         });
+        // Navigation will be handled by useEffect when user state changes
       }
     } catch (error: any) {
       toast({
